@@ -20,8 +20,8 @@ class RegisterRequest extends FormRequest
             'password' => ['required', 'string', 'min:8'],
             // hanya siswa & alumni yang boleh mendaftar sendiri
             'role' => ['required', Rule::in(['siswa', 'alumni'])],
-            'sekolah' => ['required', 'string', 'max:150'],
-            'jurusan' => ['required', 'string', 'max:100'],
+            'sekolah' => ['nullable', 'string', 'max:150'],
+            'jurusan' => ['nullable', 'string', 'max:100'],
             'device_name' => ['nullable', 'string', 'max:100'],
         ];
     }

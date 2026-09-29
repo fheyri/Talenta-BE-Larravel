@@ -23,18 +23,20 @@ class AuthController extends Controller
         $data = $request->validated();
 
         $user = DB::transaction(function () use ($data) {
+            $isComplete = !empty($data['sekolah']) && !empty($data['jurusan']);
+
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'role' => Role::from($data['role']),
-                'is_profile_complete' => true,
+                'is_profile_complete' => $isComplete,
             ]);
 
             $profile = [
                 'user_id' => $user->id,
-                'sekolah' => $data['sekolah'],
-                'jurusan' => $data['jurusan'],
+                'sekolah' => $data['sekolah'] ?? null,
+                'jurusan' => $data['jurusan'] ?? null,
             ];
 
             if ($data['role'] === 'siswa') {
@@ -76,7 +78,7 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($request->user())]);
     }
 
-    /** Untuk akun yang data dirinya belum lengkap (misalnya dibuat admin). */
+    /** Untuk akun yang melengkapi data dirinya. */
     public function completeProfile(CompleteProfileRequest $request): JsonResponse
     {
         $user = $request->user();
@@ -86,10 +88,21 @@ class AuthController extends Controller
             ? $user->siswaProfile()->firstOrCreate([])
             : $user->alumniProfile()->firstOrCreate([]);
 
-        $profile->update([
-            'sekolah' => $data['sekolah'],
-            'jurusan' => $data['jurusan'],
-        ]);
+        $profileData = array_filter([
+            'sekolah' => $data['sekolah'] ?? null,
+            'jurusan' => $data['jurusan'] ?? null,
+            'nis' => $data['nis'] ?? null,
+            'kelas' => $data['kelas'] ?? null,
+            'no_hp' => $data['no_hp'] ?? null,
+            'bio' => $data['bio'] ?? null,
+            'alamat' => $data['alamat'] ?? null,
+            'angkatan' => $data['angkatan'] ?? null,
+            'status_karier' => $data['status_karier'] ?? null,
+        ], fn($v) => !is_null($v));
+
+        if (!empty($profileData)) {
+            $profile->update($profileData);
+        }
 
         $user->update([
             'name' => $data['name'] ?? $user->name,
@@ -102,11 +115,14 @@ class AuthController extends Controller
     private function attempt(LoginRequest $request, array $allowedRoles): JsonResponse
     {
         $data = $request->validated();
+        $loginInput = $data['email'];
 
-        $user = User::where('email', $data['email'])->first();
+        $user = User::where('email', $loginInput)
+            ->orWhere('name', $loginInput)
+            ->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
-            throw ValidationException::withMessages(['email' => ['Email atau password salah.']]);
+            throw ValidationException::withMessages(['email' => ['Email / Nama atau kata sandi salah.']]);
         }
 
         if (! $user->is_active) {
